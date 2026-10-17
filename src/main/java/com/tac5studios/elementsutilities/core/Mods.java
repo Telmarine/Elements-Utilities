@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +33,17 @@ public final class Mods {
 
     private static volatile boolean create, carryOn, elementsClaims, opac, ftbChunks;
 
+    /** Loot bag mods the loot_bag_detection feature knows about: mod id -> name for the log. */
+    private static final Map<String, String> LOOT_BAG_MODS = Map.of(
+            "lootboxesplus", "LootBoxesPlus",
+            "mob_loot_bags", "Mob Loot Bags",
+            "dungeonlootbags", "Dungeon Loot Bags",
+            "treasurebags", "Treasure Bags",
+            "lootbags", "Loot Bags Renewal / LootBags+",
+            "markslootbags", "Mark's LootBags");
+    /** The known loot bag mods that are installed. */
+    private static volatile Set<String> lootBagMods = Collections.emptySet();
+
     private Mods() {}
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
@@ -49,6 +61,9 @@ public final class Mods {
         elementsClaims = mods.isLoaded("elements_claims");
         opac = mods.isLoaded("openpartiesandclaims");
         ftbChunks = mods.isLoaded("ftbchunks");
+        Set<String> bags = new HashSet<>();
+        for (String id : LOOT_BAG_MODS.keySet()) if (mods.isLoaded(id)) bags.add(id);
+        lootBagMods = Set.copyOf(bags);
 
         Map<Feature, List<String>> hits = new EnumMap<>(Feature.class);
         for (String line : Features.OVERLAP_MODS.get()) {
@@ -71,8 +86,12 @@ public final class Mods {
         guarded = off;
     }
 
-    /** Write the overlap guard results to the server log. */
+    /** Write the overlap guard and loot bag results to the server log. */
     public static void log() {
+        if (!lootBagMods.isEmpty() && Features.on(Feature.LOOT_BAG_DETECTION)) {
+            List<String> names = lootBagMods.stream().map(LOOT_BAG_MODS::get).sorted().toList();
+            ElementsUtilities.LOGGER.info("[Utilities] Loot bag mods found: {}. Their items count as loot bags.", String.join(", ", names));
+        }
         found.forEach((f, names) -> {
             if (guarded.contains(f)) {
                 ElementsUtilities.LOGGER.info("[Utilities] {} found: {} is turned off. Add \"{}\" to overlap_guard.force_on to keep it.",
@@ -88,6 +107,11 @@ public final class Mods {
         return ModList.get().getModContainerById(modId)
                 .map(c -> c.getModInfo().getDisplayName())
                 .orElse(modId);
+    }
+
+    /** True when this namespace belongs to an installed loot bag mod. */
+    public static boolean lootBagMod(String namespace) {
+        return lootBagMods.contains(namespace);
     }
 
     public static boolean guarded(Feature f) {

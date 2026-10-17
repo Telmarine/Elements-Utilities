@@ -12,7 +12,7 @@ A server-side mod for NeoForge 1.21.1 that covers the things server management m
 - **Output:** a stack of N spawners cycles N times as often, and each cycle releases 1 to N mobs. One spawner stack never releases more than 6 mobs per 5 seconds.
 - **Stacked mobs:** spawner mobs merge into stacked mobs of up to 100. A spawner keeps at most 6 stacked mobs alive. When all 6 are full the spawner stops, and starts again once every one of them is dead.
 - **No AI:** spawner mobs don't walk, attack or target anyone. Gravity, water, fans and knockback still move them, so they can be carried to a kill spot.
-- **No loot bags** from spawner mobs (the loot bag list is in `settings.toml`).
+- **No loot bags** from spawner mobs. Utilities doesn't add loot bags; it hooks into loot bag mods (see Items).
 - **Breaking:** with Silk Touch, a normal break drops the whole stack and sneak + break drops one (`break_mode`). Without Silk Touch one spawner of the stack is destroyed and nothing drops.
 - Explosions and Create drills and saws can't break a stack.
 
@@ -39,6 +39,7 @@ Only active when Create is installed.
 - **XP orbs** merge into one orb when they land near each other.
 - **Dropped items** of the same kind merge into one stack.
 - **Cleanup:** staff clear dropped items with `/utilities cleanup`, after a chat countdown. Set `mode = "timer"` in `settings.toml` to also clear them every 10 minutes (or any interval). Items on claimed land, named items, loot bags and items a player just dropped are left alone.
+- **Loot bags:** LootBoxesPlus, Mob Loot Bags, Dungeon Loot Bags, Treasure Bags, Loot Bags Renewal, LootBags+ and Mark's LootBags are detected at start, and their items count as loot bags. Other loot bag items or mods go in `[loot_bags]` in `settings.toml`.
 - **Chunk cap** (off by default): most dropped items per chunk. Items are merged first, then the oldest are cleared.
 - **Valuable items** (off by default) stay on the ground longer.
 

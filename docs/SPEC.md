@@ -18,7 +18,7 @@ Server-side NeoForge 1.21.1 mod for server performance and the small tweaks serv
 - Spawner mobs stack: mobs from the same spawner merge into stacked mobs of up to 100 each (spawner blocks themselves never merge in the world; only their mobs do).
 - Live-mob limit: one spawner has at most 6 stacked mobs alive at once (up to 600 mobs in total). Once those 6 are full, the spawner stops and only starts again when all of them are killed. Mobs are tagged with the spawner that made them.
 - Mobs from spawners have no AI: they don't walk, attack, target or wander on their own.
-- No loot bags from spawner mobs: loot bag items from mods such as Loot Plus are removed from their drops (detected loot bag mods, plus a config list of item ids).
+- No loot bags from spawner mobs: loot bag items from loot bag mods are removed from their drops (detected loot bag mods, plus a config list of item ids).
 - They still have physics: water streams, Create fans, knockback and gravity move them, so they can be carried to a kill spot. (Done by clearing their goals, not the vanilla NoAI flag, which also stops falling and water push.)
 - Breaking a stacked spawner: normal break drops the whole stack, sneak + break drops one spawner (config can pick one behaviour for both).
 - Without Silk Touch, a break destroys one spawner of the stack and drops nothing, so a wrong tool never wipes a whole stack.

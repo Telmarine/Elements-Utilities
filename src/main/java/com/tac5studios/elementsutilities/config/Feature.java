@@ -38,6 +38,9 @@ public enum Feature {
     XP_ORBS("items", "xp_orbs", true,
             "Nearby XP orbs merge into one orb.",
             "clumps"),
+    LOOT_BAG_DETECTION("items", "loot_bag_detection", true,
+            "Known loot bag mods found at start count as loot bags (LootBoxesPlus, Mob Loot Bags, Dungeon Loot Bags, Treasure Bags, "
+                    + "Loot Bags Renewal, LootBags+, Mark's LootBags). Add others to [loot_bags] in settings.toml."),
     ITEM_MERGING("items", "item_merging", true,
             "Dropped items of the same kind near each other merge into one stack."),
     ITEM_CLEANUP("items", "item_cleanup", true,

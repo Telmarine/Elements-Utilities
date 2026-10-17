@@ -92,7 +92,8 @@ public final class Settings {
                 "Item and mob lists take full ids (\"minecraft:diamond\") or a whole mod (\"lootboxesplus:*\").");
 
         b.comment("Loot bag items. Spawner mobs never drop these, and the item cap and cleanup leave them alone.").push("loot_bags");
-        LOOT_BAGS = strings(b, "items", List.of("lootboxesplus:*"), "Loot bag items or mods.");
+        LOOT_BAGS = strings(b, "items", List.of("lootboxesplus:*"),
+                "Loot bag items or mods. Known loot bag mods are also found on their own (loot_bag_detection in features.toml).");
         b.pop();
 
         b.push("xp_orbs");

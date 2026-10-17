@@ -1,9 +1,13 @@
 package com.tac5studios.elementsutilities.features;
 
+import com.tac5studios.elementsutilities.config.Feature;
+import com.tac5studios.elementsutilities.config.Features;
 import com.tac5studios.elementsutilities.config.Settings;
+import com.tac5studios.elementsutilities.core.Mods;
 import com.tac5studios.elementsutilities.mixin.ItemEntityAccessor;
 import com.tac5studios.elementsutilities.util.IdList;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -21,7 +25,9 @@ public final class DroppedItems {
     private DroppedItems() {}
 
     public static boolean lootBag(ItemStack stack) {
-        return LOOT_BAGS.contains(Settings.LOOT_BAGS.get(), stack);
+        if (LOOT_BAGS.contains(Settings.LOOT_BAGS.get(), stack)) return true;
+        return Features.on(Feature.LOOT_BAG_DETECTION)
+                && Mods.lootBagMod(BuiltInRegistries.ITEM.getKey(stack.getItem()).getNamespace());
     }
 
     public static boolean named(ItemStack stack) {
