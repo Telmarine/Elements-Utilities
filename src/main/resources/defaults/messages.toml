@@ -1,0 +1,37 @@
+# Elements: Utilities messages.
+# & color codes (&a, &l, &#FFD700). {placeholders} are filled in. "" turns a line off.
+# Reload with /utilities reload.
+
+[general]
+prefix = "&8[&bUtilities&8] "
+
+[cmd]
+reloaded = "{prefix}&7Reloaded. &e{guarded} &7feature(s) turned off by the overlap guard."
+
+[cleanup]
+warning = "{prefix}&7Dropped items will be cleared in &e{seconds} &7seconds."
+done = "{prefix}&7Cleared &e{count} &7dropped items."
+started = "{prefix}&7Cleanup started. Items clear in &e{seconds} &7seconds."
+running = "{prefix}&cA cleanup is already counting down."
+off = "{prefix}&cItem cleanup is turned off in features.toml."
+
+[lag]
+off = "{prefix}&cThe lag report is turned off."
+empty = "{prefix}&7No loaded chunks have entities or block entities."
+header = "{prefix}&7Busiest chunks &8(page {page}/{pages})"
+line = "&e#{rank} &7{dim} &f{x}, {z} &8| &7Entities &f{entities} &8| &7Block entities &f{block_entities} &8| &7Hoppers &f{hoppers} &8| &7Top &f{top}"
+none = "-"
+teleport_hover = "Click to put a teleport command in chat"
+prev = "&b[« Previous]"
+prev_hover = "Previous page"
+next = "&b[Next »]"
+next_hover = "Next page"
+alert = "{prefix}&cLag alert: &7{dim} &f{x}, {z} &7has &f{entities} &7entities and &f{block_entities} &7block entities."
+
+[stack]
+# {count} and {mob} (the mob's name in the player's own language).
+name = "&e{count}x &f{mob}"
+
+[spawner]
+added = "{prefix}&7Spawner stack: &e{count}&7/&e{max}"
+full = "{prefix}&cThis spawner stack is full ({max})."

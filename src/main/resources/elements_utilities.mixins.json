@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tac5studios.elementsutilities.mixin",
+  "plugin": "com.tac5studios.elementsutilities.mixin.MixinGate",
+  "compatibilityLevel": "JAVA_21",
+  "server": [
+    "BaseSpawnerMixin",
+    "CreateDrillMixin",
+    "CreateMovingDrillMixin",
+    "ExperienceOrbAccessor",
+    "HopperBlockEntityMixin",
+    "HopperBlockMixin",
+    "ItemEntityAccessor",
+    "LeavesBlockMixin",
+    "LevelTickersAccessor",
+    "SpawnStateMixin",
+    "VillagerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
