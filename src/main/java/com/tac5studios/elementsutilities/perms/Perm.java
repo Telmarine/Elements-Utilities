@@ -42,6 +42,8 @@ public final class Perm {
     public static final String LAG_ALERT = node("lag.alert", Who.STAFF);
     /** /utilities cleanup */
     public static final String CLEANUP = node("cleanup", Who.STAFF);
+    /** /utilities stacks check */
+    public static final String STACKS = node("stacks", Who.STAFF);
     /** /utilities reload */
     public static final String RELOAD = node("reload", Who.ADMIN);
 

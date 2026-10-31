@@ -166,6 +166,25 @@ public final class Stacks {
         return rest;
     }
 
+    /**
+     * Splits a stack into stacks of at most {@code size} (1 = single mobs). The mob keeps {@code size};
+     * the rest come out as copies where it stands. Returns how many copies were made.
+     */
+    public static int splitInto(Mob mob, int size) {
+        int n = count(mob);
+        if (n <= size) return 0;
+        int rest = n - size;
+        int made = 0;
+        while (rest > 0) {
+            int part = Math.min(size, rest);
+            if (copy(mob, part) == null) break;
+            rest -= part;
+            made++;
+        }
+        setCount(mob, size + rest); // anything that couldn't be copied stays on the mob
+        return made;
+    }
+
     /** A converting mob (zombie to drowned, skeleton to stray, ...) keeps its stack count and spawner tag. */
     @SubscribeEvent
     public static void onConvert(LivingConversionEvent.Post e) {

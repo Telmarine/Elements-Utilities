@@ -10,6 +10,9 @@ import com.tac5studios.elementsutilities.config.Settings;
 import com.tac5studios.elementsutilities.core.Mods;
 import com.tac5studios.elementsutilities.features.ItemCleanup;
 import com.tac5studios.elementsutilities.features.LagScan;
+import com.tac5studios.elementsutilities.features.MobDetection;
+import com.tac5studios.elementsutilities.features.MobRules;
+import com.tac5studios.elementsutilities.features.StackCheck;
 import com.tac5studios.elementsutilities.messages.Msg;
 import com.tac5studios.elementsutilities.perms.Perm;
 import net.minecraft.ChatFormatting;
@@ -30,7 +33,8 @@ import java.util.Map;
 /**
  * /utilities lag [page]   busiest chunks, 3 per page, only to the person who asked
  * /utilities cleanup      clear dropped items now (after the chat countdown)
- * /utilities reload       re-read messages.toml and re-check the overlap guard
+ * /utilities stacks check split stacks that aren't allowed, in every loaded chunk, now
+ * /utilities reload       re-read messages.toml and settings.toml, re-check the overlap guard and the mob lists
  */
 @EventBusSubscriber(modid = ElementsUtilities.MOD_ID, value = Dist.DEDICATED_SERVER)
 public final class Commands {
@@ -53,7 +57,7 @@ public final class Commands {
 
     private static LiteralArgumentBuilder<CommandSourceStack> build() {
         LiteralArgumentBuilder<CommandSourceStack> root = net.minecraft.commands.Commands.literal("utilities")
-                .requires(s -> Perm.has(s, Perm.RELOAD) || Perm.has(s, Perm.LAG) || Perm.has(s, Perm.CLEANUP));
+                .requires(s -> Perm.has(s, Perm.RELOAD) || Perm.has(s, Perm.LAG) || Perm.has(s, Perm.CLEANUP) || Perm.has(s, Perm.STACKS));
         root.then(net.minecraft.commands.Commands.literal("lag")
                 .requires(s -> Perm.has(s, Perm.LAG))
                 .executes(c -> lag(c, 1, true))
@@ -62,6 +66,9 @@ public final class Commands {
         root.then(net.minecraft.commands.Commands.literal("cleanup")
                 .requires(s -> Perm.has(s, Perm.CLEANUP))
                 .executes(Commands::cleanup));
+        root.then(net.minecraft.commands.Commands.literal("stacks")
+                .requires(s -> Perm.has(s, Perm.STACKS))
+                .then(net.minecraft.commands.Commands.literal("check").executes(Commands::stacksCheck)));
         root.then(net.minecraft.commands.Commands.literal("reload")
                 .requires(s -> Perm.has(s, Perm.RELOAD))
                 .executes(Commands::reload));
@@ -133,10 +140,25 @@ public final class Commands {
         return 1;
     }
 
+    private static int stacksCheck(CommandContext<CommandSourceStack> c) {
+        CommandSourceStack source = c.getSource();
+        if (!StackCheck.active()) {
+            Msg.fail(source, "stacks.off");
+            return 0;
+        }
+        StackCheck.Report report = StackCheck.checkAll(source.getServer());
+        Msg.send(source, "stacks.checked", "stacks", report.checked(), "split", report.total());
+        report.split().forEach((mob, n) -> Msg.send(source, "stacks.line", "mob", mob, "count", n));
+        return 1;
+    }
+
     private static int reload(CommandContext<CommandSourceStack> c) {
         Msg.load();
+        Settings.reload();
+        MobRules.clear();
         Mods.detect();
         Mods.log();
+        MobDetection.run(c.getSource().getServer());
         Msg.sendLogged(c.getSource(), "cmd.reloaded", "guarded", Mods.guardedCount());
         return 1;
     }

@@ -49,6 +49,7 @@ public final class Mods {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     @SuppressWarnings("unused") // the event bus needs the parameter
     public static void onAboutToStart(ServerAboutToStartEvent e) {
+        com.tac5studios.elementsutilities.config.Settings.upgrade();
         detect();
         log();
     }

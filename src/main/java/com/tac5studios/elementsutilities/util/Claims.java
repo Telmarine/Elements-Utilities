@@ -22,8 +22,37 @@ public final class Claims {
 
     public static boolean isClaimed(Level level, BlockPos pos) {
         return (Mods.elementsClaims() && elements(level, pos))
-                || (Mods.opac() && opac(level, pos))
-                || (Mods.ftbChunks() && ftb(level, pos));
+                || (Mods.opac() && opac(level, pos, true))
+                || (Mods.ftbChunks() && ftb(level, pos, true));
+    }
+
+    /** True when any supported claim mod is installed. */
+    public static boolean anyMod() {
+        return Mods.elementsClaims() || Mods.opac() || Mods.ftbChunks();
+    }
+
+    /**
+     * Is a block on land a player claimed (a player farm)? Admin/server claims only count when {@code adminCounts}.
+     * Open Parties and Claims and FTB Chunks claims all count as player claims.
+     * Unlike {@link #isClaimed}, a check that fails counts as not claimed, so nothing stacks by mistake.
+     */
+    public static boolean isPlayerClaim(Level level, BlockPos pos, boolean adminCounts) {
+        if (Mods.elementsClaims() && elementsPlayer(level, pos, adminCounts)) return true;
+        if (Mods.opac() && opac(level, pos, false)) return true;
+        return Mods.ftbChunks() && ftb(level, pos, false);
+    }
+
+    private static boolean elementsPlayer(Level level, BlockPos pos, boolean adminCounts) {
+        try {
+            if (!Boolean.TRUE.equals(Reflect.callStatic(ELEMENTS_API, "isClaimed", level, pos))) return false;
+            return adminCounts || !Boolean.TRUE.equals(Reflect.callStatic(ELEMENTS_API, "isAdminClaim", level, pos));
+        } catch (RuntimeException e) {
+            if (!elementsWarned) {
+                elementsWarned = true;
+                ElementsUtilities.LOGGER.warn("[Utilities] Elements: Claims check failed: {}", e.toString());
+            }
+            return false;
+        }
     }
 
     private static boolean elements(Level level, BlockPos pos) {
@@ -38,7 +67,7 @@ public final class Claims {
         }
     }
 
-    private static boolean opac(Level level, BlockPos pos) {
+    private static boolean opac(Level level, BlockPos pos, boolean onFail) {
         try {
             Object api = Reflect.callStatic(OPAC_API, "get", level.getServer());
             Object claims = Reflect.call(api, "getServerClaimsManager");
@@ -48,14 +77,14 @@ public final class Claims {
                 opacWarned = true;
                 ElementsUtilities.LOGGER.warn("[Utilities] Open Parties and Claims check failed: {}", e.toString());
             }
-            return true;
+            return onFail;
         }
     }
 
-    private static boolean ftb(Level level, BlockPos pos) {
+    private static boolean ftb(Level level, BlockPos pos, boolean onFail) {
         try {
             Object api = Reflect.callStatic(FTB_API, "api");
-            if (!Boolean.TRUE.equals(Reflect.call(api, "isManagerLoaded"))) return true;
+            if (!Boolean.TRUE.equals(Reflect.call(api, "isManagerLoaded"))) return onFail;
             Object manager = Reflect.call(api, "getManager");
             return Reflect.call(manager, "getChunk", Reflect.create(FTB_POS, level, pos)) != null;
         } catch (RuntimeException e) {
@@ -63,7 +92,7 @@ public final class Claims {
                 ftbWarned = true;
                 ElementsUtilities.LOGGER.warn("[Utilities] FTB Chunks check failed: {}", e.toString());
             }
-            return true;
+            return onFail;
         }
     }
 }

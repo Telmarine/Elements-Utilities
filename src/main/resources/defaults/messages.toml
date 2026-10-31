@@ -28,6 +28,11 @@ next = "&b[Next »]"
 next_hover = "Next page"
 alert = "{prefix}&cLag alert: &7{dim} &f{x}, {z} &7has &f{entities} &7entities and &f{block_entities} &7block entities."
 
+[stacks]
+checked = "{prefix}&7Checked &e{stacks} &7stack(s) in loaded chunks. Split &e{split}&7."
+line = "&8- &f{mob}&7: &e{count}"
+off = "{prefix}&cHeavy mob rules are turned off in features.toml."
+
 [stack]
 # {count} and {mob} (the mob's name in the player's own language).
 name = "&e{count}x &f{mob}"

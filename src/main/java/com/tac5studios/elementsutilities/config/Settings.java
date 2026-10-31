@@ -8,6 +8,16 @@ import net.neoforged.neoforge.common.ModConfigSpec.ConfigValue;
 import net.neoforged.neoforge.common.ModConfigSpec.DoubleValue;
 import net.neoforged.neoforge.common.ModConfigSpec.IntValue;
 
+import com.electronwill.nightconfig.core.UnmodifiableConfig;
+import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import com.tac5studios.elementsutilities.ElementsUtilities;
+import net.neoforged.fml.loading.FMLPaths;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -60,6 +70,8 @@ public final class Settings {
     public static final IntValue SPAWNER_MAX_STACK, SPAWNER_MOB_MAX, SPAWNER_LIVE_STACKS, SPAWNER_CAP_MOBS, SPAWNER_CAP_SECONDS,
             SPAWNER_SEARCH_RADIUS, SPAWNER_MIN_DELAY;
     public static final ConfigValue<String> SPAWNER_BREAK_MODE;
+    public static final IntValue SPAWNER_HEAVY_CAP;
+    public static final ConfigValue<List<? extends String>> SPAWNER_CAPS;
 
     // [create]
     public static final BooleanValue CREATE_XP_NUGGETS, CREATE_PLAYER_KILLS;
@@ -68,7 +80,23 @@ public final class Settings {
     public static final IntValue STACK_MAX, STACK_MERGE_SECONDS;
     public static final DoubleValue STACK_RADIUS;
     public static final BooleanValue STACK_NAME_VISIBLE;
-    public static final ConfigValue<List<? extends String>> STACK_NEVER;
+    public static final ConfigValue<List<? extends String>> STACK_NEVER, HEAVY_MOBS, LIGHT_MOBS;
+    public static final BooleanValue BOSSES_NEVER_STACK, SKIP_BOSS_TAG;
+    public static final IntValue HEAVY_HEALTH;
+
+    // [farm_stacking]
+    public static final IntValue FARM_MAX;
+    public static final ConfigValue<List<? extends String>> FARM_CAPS, FARM_SPAWN_TYPES, FARM_MOB_SPAWN_TYPES;
+    public static final BooleanValue ADMIN_CLAIMS_COUNT;
+    public static final ConfigValue<String> NO_CLAIM_MOD;
+
+    /** never_stack as 1.0.0 wrote it. A file still holding exactly this list is updated once on start. */
+    public static final List<String> NEVER_STACK_1_0_0 = List.of(
+            "minecraft:villager", "minecraft:wandering_trader", "minecraft:iron_golem", "minecraft:snow_golem",
+            "minecraft:allay", "minecraft:warden", "minecraft:elder_guardian", "minecraft:wither",
+            "minecraft:ender_dragon", "minecraft:shulker");
+    /** Taken out of never_stack in 1.0.1: they stack in player farms now. */
+    public static final List<String> MOVED_TO_FARMS = List.of("minecraft:warden", "minecraft:iron_golem", "minecraft:elder_guardian");
 
     // [hostile_cap]
     public static final IntValue HOSTILE_MAX;
@@ -181,6 +209,10 @@ public final class Settings {
                         "\"one\"  = always one",
                         "Without Silk Touch a break destroys one spawner of the stack and drops nothing.")
                 .define("break_mode", "both", o -> o instanceof String m && (m.equals("both") || m.equals("all") || m.equals("one")));
+        SPAWNER_HEAVY_CAP = b.comment("Most heavy mobs (see [mob_stacking]) in one stacked spawner mob.")
+                .defineInRange("heavy_mob_cap", 4, 1, 10000);
+        SPAWNER_CAPS = strings(b, "mob_caps", List.of("minecraft:warden=4"),
+                "Limits for single mobs in spawner mob stacks, \"id=number\". They replace heavy_mob_cap and mob_stack_max for that mob.");
         b.pop();
 
         b.comment("Create machines as kill sources (only used when Create is installed).").push("create");
@@ -197,9 +229,41 @@ public final class Settings {
         STACK_NAME_VISIBLE = b.comment("Always show the stack count above the mob. Off: it shows when a player looks at the mob.")
                 .define("name_always_visible", false);
         STACK_NEVER = strings(b, "never_stack", List.of(
-                "minecraft:villager", "minecraft:wandering_trader", "minecraft:iron_golem", "minecraft:snow_golem",
-                "minecraft:allay", "minecraft:warden", "minecraft:elder_guardian", "minecraft:wither",
-                "minecraft:ender_dragon", "minecraft:shulker"), "Mobs that never stack.");
+                "minecraft:villager", "minecraft:wandering_trader", "minecraft:snow_golem", "minecraft:allay",
+                "minecraft:wither", "minecraft:ender_dragon", "minecraft:shulker"),
+                "Mobs that never stack, player farms included. Spawner mobs still follow the spawner rules.");
+        BOSSES_NEVER_STACK = b.comment("Mobs with a boss bar never stack, player farms included.").define("bosses_never_stack", true);
+        HEAVY_HEALTH = b.comment("Heavy mobs only stack in player farms (see [farm_stacking]).",
+                        "A mob is heavy when its base max health is at least this much, it has a boss bar, it's in #c:bosses",
+                        "(skip_boss_tag) or it's on heavy_mobs.")
+                .defineInRange("heavy_health", 100, 1, 10000);
+        SKIP_BOSS_TAG = b.comment("Mobs in the #c:bosses tag count as heavy.").define("skip_boss_tag", true);
+        HEAVY_MOBS = strings(b, "heavy_mobs", List.of("minecraft:elder_guardian"), "Extra mobs that count as heavy.");
+        LIGHT_MOBS = strings(b, "light_mobs", List.of(),
+                "Mobs listed here never count as heavy, so they stack everywhere like normal mobs.",
+                "Add a mob by its id in quotes: \"modid:mob_name\", for example \"minecraft:ravager\".",
+                "A whole mod: \"modid:*\". Ids for every mob from other mods are listed in",
+                "detected_mobs.toml next to this file. Save, then run /utilities reload.");
+        b.pop();
+
+        b.comment("Heavy mobs in player farms (player-claimed land). Spawner mobs follow [spawners] instead.").push("farm_stacking");
+        FARM_MAX = b.comment("Most heavy mobs in one stack inside a player farm.").defineInRange("max_stack", 8, 2, 1000);
+        FARM_CAPS = strings(b, "mob_caps", List.of("minecraft:warden=4"),
+                "Limits for single mobs, \"id=number\". They replace max_stack for that mob.");
+        FARM_SPAWN_TYPES = strings(b, "spawn_types", List.of("NATURAL", "MOB_SUMMONED", "EVENT", "PATROL", "TRIGGERED", "REINFORCEMENT"),
+                "How a heavy mob came into the world, for it to stack in a farm. Mobs with no spawn type",
+                "(player-built Iron Golems and Withers) never stack. Types: NATURAL, CHUNK_GENERATION, SPAWNER, STRUCTURE,",
+                "BREEDING, MOB_SUMMONED, JOCKEY, EVENT, CONVERSION, REINFORCEMENT, TRIGGERED, BUCKET, SPAWN_EGG, COMMAND,",
+                "DISPENSER, PATROL, TRIAL_SPAWNER.");
+        FARM_MOB_SPAWN_TYPES = strings(b, "mob_spawn_types",
+                List.of("minecraft:iron_golem=MOB_SUMMONED", "minecraft:elder_guardian=STRUCTURE"),
+                "Spawn types for single mobs, \"id=TYPE,TYPE\". They replace spawn_types for that mob.",
+                "Iron Golems: only golems villagers summon. Elder Guardians: the ones that came with the monument.");
+        ADMIN_CLAIMS_COUNT = b.comment("Admin/server claims count as player farms.").define("admin_claims_count", false);
+        NO_CLAIM_MOD = b.comment("With no claim mod installed:",
+                        "\"never\"      = heavy mobs never stack",
+                        "\"spawn_type\" = heavy mobs stack anywhere, by the spawn types and limits above")
+                .define("no_claim_mod", "never", o -> o instanceof String m && (m.equals("never") || m.equals("spawn_type")));
         b.pop();
 
         b.push("hostile_cap");
@@ -244,5 +308,76 @@ public final class Settings {
 
     public static void register(ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, SPEC, "elements_utilities/settings.toml");
+    }
+
+    private static Path file() {
+        return FMLPaths.CONFIGDIR.get().resolve("elements_utilities").resolve("settings.toml");
+    }
+
+    /**
+     * Re-reads settings.toml (/utilities reload). NeoForge also picks up a saved file by itself; this makes sure
+     * the values in use match the file right now. Values that don't pass their check are left as they are.
+     * Returns how many values changed.
+     */
+    public static int reload() {
+        if (!SPEC.isLoaded()) return 0;
+        Path path = file();
+        if (!Files.exists(path)) return 0;
+        try (CommentedFileConfig cfg = CommentedFileConfig.builder(path).build()) {
+            cfg.load();
+            return apply(SPEC.getValues(), cfg, new ArrayList<>());
+        } catch (Exception e) {
+            ElementsUtilities.LOGGER.warn("[Utilities] Could not re-read {}: {}", path, e.toString());
+            return 0;
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int apply(UnmodifiableConfig values, UnmodifiableConfig file, List<String> path) {
+        int changed = 0;
+        for (UnmodifiableConfig.Entry entry : values.entrySet()) {
+            List<String> at = new ArrayList<>(path);
+            at.add(entry.getKey());
+            Object v = entry.getValue();
+            if (v instanceof UnmodifiableConfig section) {
+                changed += apply(section, file, at);
+            } else if (v instanceof ConfigValue value) {
+                Object raw = file.get(at);
+                if (raw == null || raw.equals(value.get()) || !value.getSpec().test(raw)) continue;
+                value.set(raw);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * 1.0.0 to 1.0.1: never_stack still exactly the 1.0.0 default loses the Warden, Iron Golem and Elder Guardian,
+     * which stack in player farms now. A copy of the old file is kept. An edited list is left alone.
+     */
+    public static void upgrade() {
+        if (!SPEC.isLoaded()) return;
+        List<? extends String> never = STACK_NEVER.get();
+        if (new HashSet<>(never).equals(new HashSet<>(NEVER_STACK_1_0_0)) && never.size() == NEVER_STACK_1_0_0.size()) {
+            Path path = file();
+            try {
+                if (Files.exists(path)) Files.copy(path, path.resolveSibling("settings.toml.1.0.0.bak"), StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                ElementsUtilities.LOGGER.warn("[Utilities] Could not back up {}: {}", path, e.toString());
+                return;
+            }
+            List<String> updated = new ArrayList<>(never);
+            updated.removeAll(MOVED_TO_FARMS);
+            STACK_NEVER.set(updated);
+            STACK_NEVER.save();
+            ElementsUtilities.LOGGER.info("[Utilities] never_stack updated for 1.0.1: Warden, Iron Golem and Elder Guardian now stack "
+                    + "in player farms. Old file kept as settings.toml.1.0.0.bak.");
+            return;
+        }
+        List<String> still = MOVED_TO_FARMS.stream().filter(never::contains).toList();
+        if (!still.isEmpty()) {
+            ElementsUtilities.LOGGER.info("[Utilities] never_stack was edited, so it was left alone. Still on it (never stack, "
+                    + "player farms included): {}", String.join(", ", still));
+        }
     }
 }

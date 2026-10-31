@@ -16,6 +16,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.VariantHolder;
 import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.WaterAnimal;
 import net.minecraft.world.entity.monster.Enemy;
@@ -42,6 +43,7 @@ import java.util.Objects;
 /**
  * Natural mob stacking. Every few seconds, identical idle mobs standing close together merge into one mob
  * with a count in its name (up to 12 by default). Bred, tamed, named, leashed and spawner mobs never stack.
+ * Heavy mobs (see {@link MobRules}) only stack in player farms, up to the farm limit.
  *
  * <p>Taking one out of a stack: a lead or name tag pulls one out; Carry On (sneak + right-click with an empty hand)
  * picks up one; breeding food pulls out two to breed. Shearing a stack shears all of them.
@@ -65,23 +67,38 @@ public final class NaturalStacking {
     @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post e) {
         if (!(e.getLevel() instanceof ServerLevel level)) return;
+        StackCheck.runQueued(level);
         if (level.getGameTime() % (Settings.STACK_MERGE_SECONDS.get() * 20L) != 0) return;
-        if (!Features.on(Feature.NATURAL_MOB_STACKING)) return;
+        boolean merging = Features.on(Feature.NATURAL_MOB_STACKING);
+        boolean splitting = StackCheck.active();
+        if (!merging && !splitting) return;
 
         List<Mob> mobs = new ArrayList<>();
+        List<Mob> stacks = new ArrayList<>();
         for (Entity entity : level.getAllEntities()) {
-            if (entity instanceof Mob mob && canStack(mob)) mobs.add(mob);
+            if (!(entity instanceof Mob mob)) continue;
+            if (splitting && Stacks.count(mob) > 1) stacks.add(mob);
+            if (merging && limit(mob) > 1) mobs.add(mob);
         }
-        int max = Settings.STACK_MAX.get();
+        if (splitting) {
+            for (Mob mob : stacks) StackCheck.check(mob);
+            StackCheck.logSplits("merge check");
+        }
+        if (!merging) return;
+
         double r = Settings.STACK_RADIUS.get();
         int merges = 0;
         for (Mob mob : mobs) {
             if (merges >= MAX_MERGES) break;
-            if (!mob.isAlive() || Stacks.count(mob) >= max) continue;
+            if (!mob.isAlive()) continue;
+            int max = limit(mob);
+            if (Stacks.count(mob) >= max) continue;
             for (Mob other : level.getEntitiesOfClass(Mob.class, mob.getBoundingBox().inflate(r),
                     o -> o != mob && o.isAlive() && o.getType() == mob.getType())) {
-                if (!canStack(other) || !same(mob, other)) continue;
-                int room = max - Stacks.count(mob);
+                if (!same(mob, other)) continue;
+                int cap = Math.min(max, limit(other));
+                if (cap <= 1) continue;
+                int room = cap - Stacks.count(mob);
                 if (room <= 0) break;
                 int theirs = Stacks.count(other);
                 int moved = Math.min(room, theirs);
@@ -93,20 +110,36 @@ public final class NaturalStacking {
         }
     }
 
-    /** Mobs that may be part of a natural stack. */
-    static boolean canStack(Mob mob) {
-        if (!(mob instanceof Animal || mob instanceof Enemy || mob instanceof WaterAnimal)) return false;
-        if (mob instanceof AbstractVillager || SpawnerMobs.isSpawnerMob(mob)) return false;
+    /**
+     * Most mobs this mob's stack may hold where it stands now: [mob_stacking] max_stack for normal mobs,
+     * the farm limit for heavy mobs in a player farm, 0 when it may not stack at all.
+     */
+    static int limit(Mob mob) {
+        if (SpawnerMobs.isSpawnerMob(mob) || mob instanceof AbstractVillager) return 0;
+        boolean rules = Features.on(Feature.HEAVY_MOB_RULES);
+        MobRules.Info info = rules ? MobRules.info(mob) : null;
+        boolean heavy = info != null && info.group() == MobRules.Group.HEAVY;
+        if (info != null && !heavy && info.heavyClass()) return 0; // never_stack or boss bar
+        if (!heavy && !(mob instanceof Animal || mob instanceof Enemy || mob instanceof WaterAnimal)) return 0;
+        if (!idle(mob, heavy)) return 0;
+        if (!rules) return NEVER.contains(Settings.STACK_NEVER.get(), mob.getType()) ? 0 : Settings.STACK_MAX.get();
+        if (!heavy) return Settings.STACK_MAX.get();
+        if (mob instanceof IronGolem golem && golem.isPlayerCreated()) return 0;
+        return MobRules.farmAllowed(mob) ? MobRules.farmCap(mob.getType()) : 0;
+    }
+
+    /** Not bred, named, leashed, owned, riding, in love, fighting or raiding. Heavy mobs may be persistent (Elder Guardians always are). */
+    private static boolean idle(Mob mob, boolean heavy) {
         if (mob.getPersistentData().getBoolean(BRED)) return false;
-        if (Stacks.playerNamed(mob) || mob.isLeashed() || mob.isPersistenceRequired()) return false;
+        if (Stacks.playerNamed(mob) || mob.isLeashed()) return false;
+        if (!heavy && mob.isPersistenceRequired()) return false;
         if (mob.isPassenger() || mob.isVehicle()) return false;
         // Separate ifs on purpose: one mob can match several of these types.
         //noinspection IfCanBeSwitch
         if (mob instanceof OwnableEntity owned && owned.getOwnerUUID() != null) return false;
         if (mob instanceof Animal animal && animal.isInLove()) return false;
-        if (mob instanceof Enemy && mob.getTarget() != null) return false; // only idle hostiles
-        if (mob instanceof Raider raider && raider.hasActiveRaid()) return false;
-        return !NEVER.contains(Settings.STACK_NEVER.get(), mob.getType());
+        if ((mob instanceof Enemy || heavy) && mob.getTarget() != null) return false; // only idle mobs
+        return !(mob instanceof Raider raider && raider.hasActiveRaid());
     }
 
     /** Same look: baby or adult, sheep colour and fleece, and the variant for mobs that have one. */

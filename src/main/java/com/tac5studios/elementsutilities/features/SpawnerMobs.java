@@ -12,6 +12,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.SpawnerBlockEntity;
 import net.minecraft.world.phys.AABB;
@@ -24,6 +25,7 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
+import net.neoforged.neoforge.event.entity.living.MobEffectEvent;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,9 +38,9 @@ import java.util.WeakHashMap;
  *  - Tagged with the spawner that made them, and kept from despawning (vanilla then leaves them out of the mob cap).
  *  - No AI: their goals and brain are cleared, but they still fall, get pushed by water and fans and take knockback.
  *  - Stacking: each spawn cycle adds a random number of mobs (1 up to the number of stacked spawners) to the
- *    spawner's stacked mobs, up to 100 per stacked mob, at most 6 mobs per 5 seconds per spawner. A spawner keeps
+ *    spawner's stacked mobs, up to 100 per stacked mob (heavy mobs 4), at most 6 mobs per 5 seconds per spawner. A spawner keeps
  *    at most 6 stacked mobs alive; once all 6 are full it stops until every one of them is dead.
- *  - Never drop loot bags.
+ *  - Never drop loot bags, and can't give players effects (spawner_mob_no_effects).
  */
 @EventBusSubscriber(modid = ElementsUtilities.MOD_ID, value = Dist.DEDICATED_SERVER)
 // unused: handlers are called by the event bus. resource: Level is AutoCloseable, but the server owns and closes it.
@@ -94,7 +96,7 @@ public final class SpawnerMobs {
         if (last.get(pos.asLong()) == now && last.containsKey(pos.asLong())) return false; // the rest of this cycle's mobs
         last.put(pos.asLong(), now);
 
-        int mobMax = Settings.SPAWNER_MOB_MAX.get();
+        int mobMax = MobRules.spawnerCap(mob); // same mob type as the spawner's other stacks
         int liveMax = Settings.SPAWNER_LIVE_STACKS.get();
         List<Mob> live = level.getEntitiesOfClass(Mob.class, new AABB(pos).inflate(Settings.SPAWNER_SEARCH_RADIUS.get()),
                 m -> m.isAlive() && fromSpawner(m, level, pos));
@@ -181,6 +183,15 @@ public final class SpawnerMobs {
         mob.targetSelector.removeAllGoals(g -> true);
         mob.getBrain().removeAllBehaviors();
         mob.setTarget(null);
+    }
+
+    // ---------- effects ----------
+
+    /** Warden Darkness, Elder Guardian Mining Fatigue and any other effect a spawner mob gives a player. */
+    @SubscribeEvent
+    public static void onEffect(MobEffectEvent.Applicable e) {
+        if (!(e.getEntity() instanceof Player) || e.getEffectSource() == null || !isSpawnerMob(e.getEffectSource())) return;
+        if (Features.on(Feature.SPAWNER_MOB_NO_EFFECTS)) e.setResult(MobEffectEvent.Applicable.Result.DO_NOT_APPLY);
     }
 
     // ---------- loot bags ----------
